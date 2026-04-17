@@ -76,8 +76,9 @@ class SnakeGame:
     def handle_key(self, key: int) -> bool:
         if key in (ord("q"), ord("Q")):
             self.record_attempt()
-            name = ask_player_name(self.screen, self.score, self.difficulty_name)
-            save_score(self.difficulty_name, self.score, name)
+            best_score = self.best_attempt_score()
+            name = ask_player_name(self.screen, best_score, self.difficulty_name)
+            save_score(self.difficulty_name, best_score, name)
             self.scores = load_scores(self.difficulty_name)
             write_scoring_board_md(load_all_scores())
             return False
@@ -145,7 +146,11 @@ class SnakeGame:
             return
         self.attempt_finished = True
         self.attempt_history.append((self.current_attempt, self.score))
-        self.attempt_history = self.attempt_history[-ATTEMPT_LOG_LINES:]
+
+    def best_attempt_score(self) -> int:
+        if not self.attempt_history:
+            return self.score
+        return max(score for _, score in self.attempt_history)
 
     def hit_wall(self, position: tuple[int, int]) -> bool:
         x, y = position

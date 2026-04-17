@@ -10,7 +10,7 @@
 
 | Rank | Score | Name | Date |
 |------|-------|------|------|
-| - | - | - | No scores recorded yet |
+| 1 | 8 | qlep | 2026-04-17 15:27 |
 
 ## HIGH
 
