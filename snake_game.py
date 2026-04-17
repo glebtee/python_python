@@ -11,6 +11,11 @@ TICK_MS = 140
 WIN_SCORE = 100
 MIN_HEIGHT = GRID_SIZE + 6
 MIN_WIDTH = GRID_SIZE * CELL_WIDTH + 6
+DIFFICULTY_CHOICES = (
+    ("ease", int(TICK_MS * 1.15)),
+    ("mid", TICK_MS),
+    ("high", int(TICK_MS * 0.8)),
+)
 AFPLAY_PATH = shutil.which("afplay")
 SOUND_FILES = {
     "move": Path("/System/Library/Sounds/Tink.aiff"),
@@ -24,8 +29,10 @@ RIGHT = (1, 0)
 
 
 class SnakeGame:
-    def __init__(self, screen: curses.window) -> None:
+    def __init__(self, screen: curses.window, difficulty_name: str, tick_ms: int) -> None:
         self.screen = screen
+        self.difficulty_name = difficulty_name
+        self.tick_ms = tick_ms
         self.board_top = 2
         self.board_left = 2
         self.reset()
@@ -111,6 +118,7 @@ class SnakeGame:
     def draw(self) -> None:
         self.screen.erase()
         self.screen.addstr(0, 2, "PYTHON PYTHON", curses.A_BOLD)
+        self.screen.addstr(0, MIN_WIDTH - 20, f"LVL {self.difficulty_name.upper()}", curses.A_BOLD)
         self.screen.addstr(0, MIN_WIDTH - 8, f"PTS {self.score:02d}", curses.A_BOLD)
         self.draw_frame()
         self.draw_board()
@@ -164,7 +172,6 @@ def configure_screen(screen: curses.window) -> None:
     curses.curs_set(0)
     screen.nodelay(True)
     screen.keypad(True)
-    screen.timeout(TICK_MS)
 
     if curses.has_colors():
         curses.start_color()
@@ -172,6 +179,10 @@ def configure_screen(screen: curses.window) -> None:
         curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
         curses.init_pair(2, curses.COLOR_WHITE, curses.COLOR_BLACK)
         curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_BLACK)
+
+
+def set_tick_speed(screen: curses.window, tick_ms: int) -> None:
+    screen.timeout(tick_ms)
 
 
 def play_sound(event: str) -> None:
@@ -198,10 +209,45 @@ def ensure_terminal_size(screen: curses.window) -> None:
         )
 
 
+def choose_difficulty(screen: curses.window) -> tuple[str, int] | None:
+    selected = 1
+
+    while True:
+        screen.erase()
+        screen.addstr(3, 10, "PYTHON PYTHON", curses.A_BOLD)
+        screen.addstr(5, 8, "SELECT DIFFICULTY", curses.A_BOLD)
+        screen.addstr(7, 6, "UP/DOWN TO CHOOSE  ENTER TO START")
+        screen.addstr(8, 6, "Q TO QUIT")
+
+        for index, (name, tick_ms) in enumerate(DIFFICULTY_CHOICES):
+            marker = ">" if index == selected else " "
+            speed_text = f"{tick_ms} MS"
+            row = 11 + index * 2
+            screen.addstr(row, 10, f"{marker} {name.upper():<4}  {speed_text}", curses.A_BOLD if index == selected else 0)
+
+        screen.refresh()
+        key = screen.getch()
+
+        if key in (ord("q"), ord("Q")):
+            return None
+        if key == curses.KEY_UP:
+            selected = (selected - 1) % len(DIFFICULTY_CHOICES)
+        elif key == curses.KEY_DOWN:
+            selected = (selected + 1) % len(DIFFICULTY_CHOICES)
+        elif key in (10, 13, curses.KEY_ENTER):
+            return DIFFICULTY_CHOICES[selected]
+
+
 def run(screen: curses.window) -> None:
     configure_screen(screen)
     ensure_terminal_size(screen)
-    game = SnakeGame(screen)
+    difficulty = choose_difficulty(screen)
+    if difficulty is None:
+        return
+
+    difficulty_name, tick_ms = difficulty
+    set_tick_speed(screen, tick_ms)
+    game = SnakeGame(screen, difficulty_name, tick_ms)
 
     running = True
     while running:

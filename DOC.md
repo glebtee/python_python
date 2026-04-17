@@ -10,14 +10,22 @@ The game renders a fixed-size board in terminal text mode, updates on a timer, a
 
 ## Functional Requirements
 - Grid size: `20 x 20`
+- Start screen menu with three difficulty levels
 - Snake movement: up/down/left/right using arrow keys
 - Food: black square blocks
 - Score: increments by 1 per pickup
 - Score display: upper-right corner (`PTS XX`)
-- Win condition: score reaches `10`
+- Selected difficulty display: top row (`LVL EASE`, `LVL MID`, `LVL HIGH`)
+- Win condition: score reaches `100`
 - Lose condition: collision with wall or snake body
+- Start selected difficulty with `Enter`
 - Restart: `R`
 - Quit: `Q`
+
+Difficulty requirements:
+- `ease`: 15% slower than base speed
+- `mid`: current/base speed
+- `high`: 20% faster than base speed
 
 ## Technical Requirements
 - Python 3 (tested with Python 3.13 in this workspace)
@@ -43,9 +51,12 @@ Key constants that define behavior:
 - `GRID_SIZE = 20`
 - `CELL_WIDTH = 2`
 - `TICK_MS = 140`
-- `WIN_SCORE = 10`
+- `WIN_SCORE = 100`
 - `MIN_HEIGHT = GRID_SIZE + 6`
 - `MIN_WIDTH = GRID_SIZE * CELL_WIDTH + 6`
+
+Difficulty constants:
+- `DIFFICULTY_CHOICES = (("ease", 161), ("mid", 140), ("high", 112))`
 
 Audio constants:
 - `AFPLAY_PATH = shutil.which("afplay")`
@@ -56,6 +67,7 @@ Audio constants:
 ### `SnakeGame` class
 Responsibilities:
 - Stores game state (`snake`, `direction`, `food`, `score`, `game_over`)
+- Stores selected difficulty name and tick speed
 - Handles reset and movement logic
 - Validates collisions
 - Draws the UI frame, board, entities, and overlays
@@ -70,10 +82,20 @@ Core methods:
 
 ### Runtime functions
 - `configure_screen(screen)`: configures `curses` modes and colors
+- `set_tick_speed(screen, tick_ms)`: applies selected gameplay speed using `screen.timeout(...)`
+- `choose_difficulty(screen)`: renders and handles the start menu
 - `play_sound(event)`: plays macOS sound via `afplay`, else falls back to beep/flash
 - `ensure_terminal_size(screen)`: enforces minimum terminal dimensions
 - `run(screen)`: main loop (`draw -> input -> update`)
 - `main()`: entrypoint (`curses.wrapper(run)`)
+
+## Start Screen Flow
+1. Configure terminal rendering and input handling.
+2. Validate minimum terminal size.
+3. Show difficulty menu.
+4. Let the user select `ease`, `mid`, or `high` using `Up` and `Down`.
+5. Start the game after `Enter` is pressed.
+6. Exit immediately if `Q` is pressed from the menu.
 
 ## Game Loop
 Per iteration:
@@ -82,7 +104,7 @@ Per iteration:
 3. Handle control input
 4. Advance one simulation tick
 
-Timing uses `screen.timeout(TICK_MS)` so the loop updates regularly even without input.
+Timing uses the selected difficulty timeout so the loop updates regularly even without input.
 
 ## Collision And Rule Details
 - Reverse-direction turns are rejected to prevent instant self-collision.
