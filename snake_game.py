@@ -13,7 +13,9 @@ WIN_SCORE = 100
 BOARD_WIDTH = GRID_SIZE * CELL_WIDTH + 2
 SCOREBOARD_LEFT = 2 + BOARD_WIDTH + 4
 SCOREBOARD_WIDTH = 20
-MIN_HEIGHT = GRID_SIZE + 6
+BASE_MIN_HEIGHT = GRID_SIZE + 6
+ATTEMPT_LOG_LINES = 5
+MIN_HEIGHT = BASE_MIN_HEIGHT + ATTEMPT_LOG_LINES + 1
 MIN_WIDTH = SCOREBOARD_LEFT + SCOREBOARD_WIDTH + 2
 SCORING_BOARD_MD = Path(__file__).parent / "SCORING_BOARD.md"
 MAX_SCORES = 10
@@ -40,11 +42,19 @@ class SnakeGame:
         self.difficulty_name = difficulty_name
         self.tick_ms = tick_ms
         self.scores = scores
+        self.current_attempt = 0
+        self.attempt_finished = False
+        self.attempt_history: list[tuple[int, int]] = []
         self.board_top = 2
         self.board_left = 2
         self.reset()
 
     def reset(self) -> None:
+        if not self.attempt_finished and self.current_attempt > 0:
+            self.record_attempt()
+
+        self.current_attempt += 1
+        self.attempt_finished = False
         mid = GRID_SIZE // 2
         self.snake = [(mid, mid), (mid - 1, mid), (mid - 2, mid)]
         self.direction = RIGHT
@@ -65,6 +75,7 @@ class SnakeGame:
 
     def handle_key(self, key: int) -> bool:
         if key in (ord("q"), ord("Q")):
+            self.record_attempt()
             name = ask_player_name(self.screen, self.score, self.difficulty_name)
             save_score(self.difficulty_name, self.score, name)
             self.scores = load_scores(self.difficulty_name)
@@ -106,6 +117,7 @@ class SnakeGame:
         if self.hit_wall(new_head) or new_head in self.snake:
             self.game_over = True
             self.message = "GAME OVER, LOOSER!"
+            self.record_attempt()
             return
 
         self.snake.insert(0, new_head)
@@ -116,6 +128,7 @@ class SnakeGame:
             if self.score >= WIN_SCORE:
                 self.game_over = True
                 self.message = "YOU WIN!"
+                self.record_attempt()
                 self.draw()
                 name = ask_player_name(self.screen, self.score, self.difficulty_name)
                 save_score(self.difficulty_name, self.score, name)
@@ -126,6 +139,13 @@ class SnakeGame:
         else:
             self.snake.pop()
             play_sound("move")
+
+    def record_attempt(self) -> None:
+        if self.attempt_finished:
+            return
+        self.attempt_finished = True
+        self.attempt_history.append((self.current_attempt, self.score))
+        self.attempt_history = self.attempt_history[-ATTEMPT_LOG_LINES:]
 
     def hit_wall(self, position: tuple[int, int]) -> bool:
         x, y = position
@@ -140,10 +160,14 @@ class SnakeGame:
         self.draw_board()
         self.draw_scoreboard()
 
+        attempts_top = self.board_top + GRID_SIZE + 3
         if self.game_over:
             self.draw_overlay(self.message, "R TO RESTART OR Q TO QUIT AS LOOSERS DO!!1")
+            self.screen.addstr(attempts_top, 2, "R TO RESTART  Q TO SAVE + QUIT")
         else:
-            self.screen.addstr(MIN_HEIGHT - 1, 2, "ARROWS TO MOVE Q TO QUIT")
+            self.screen.addstr(attempts_top, 2, "ARROWS TO MOVE  Q TO SAVE + QUIT")
+
+        self.draw_attempt_log(attempts_top + 1)
 
         self.screen.refresh()
 
@@ -202,6 +226,19 @@ class SnakeGame:
             self.screen.addstr(top + 3 + blank, col, "|" + " " * inner + "|")
 
         self.screen.addstr(top + 3 + MAX_SCORES, col, "+" + "-" * inner + "+", curses.A_BOLD)
+
+    def draw_attempt_log(self, start_row: int) -> None:
+        self.screen.addstr(start_row, 2, "ATTEMPTS (number + score):", curses.A_BOLD)
+        recent = list(reversed(self.attempt_history[-ATTEMPT_LOG_LINES:]))
+
+        for idx in range(ATTEMPT_LOG_LINES):
+            row = start_row + 1 + idx
+            if idx < len(recent):
+                attempt_number, score = recent[idx]
+                line = f"#{attempt_number:>2}  SCORE {score:>3}"
+            else:
+                line = ""
+            self.screen.addstr(row, 2, line.ljust(30))
 
 
 def configure_screen(screen: curses.window) -> None:

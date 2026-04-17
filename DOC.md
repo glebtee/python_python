@@ -23,6 +23,7 @@ The game renders a fixed-size board in terminal text mode, updates on a timer, a
 - Quit/save flow: `Q` prompts for player name, saves score, then exits
 - Win/save flow: on win, prompts for player name, saves score, then exits
 - Right-side scoreboard displays only the chosen difficulty entries
+- Attempts log shown below the game area with attempt number and score
 
 Difficulty requirements:
 - `ease`: 15% slower than base speed
@@ -62,7 +63,9 @@ Key constants that define behavior:
 - `BOARD_WIDTH = GRID_SIZE * CELL_WIDTH + 2`
 - `SCOREBOARD_LEFT = 2 + BOARD_WIDTH + 4`
 - `SCOREBOARD_WIDTH = 20`
-- `MIN_HEIGHT = GRID_SIZE + 6`
+- `BASE_MIN_HEIGHT = GRID_SIZE + 6`
+- `ATTEMPT_LOG_LINES = 5`
+- `MIN_HEIGHT = BASE_MIN_HEIGHT + ATTEMPT_LOG_LINES + 1`
 - `MIN_WIDTH = SCOREBOARD_LEFT + SCOREBOARD_WIDTH + 2`
 
 Difficulty constants:
@@ -83,6 +86,7 @@ Responsibilities:
 - Stores game state (`snake`, `direction`, `food`, `score`, `game_over`)
 - Stores selected difficulty name and tick speed
 - Stores scoreboard entries for selected difficulty
+- Tracks attempts (`attempt number`, `score`) for on-screen history
 - Handles reset and movement logic
 - Validates collisions
 - Draws the UI frame, board, entities, and overlays
@@ -94,6 +98,8 @@ Core methods:
 - `update()`: advances game by one tick and applies rules
 - `draw()`: full render cycle per frame
 - `draw_frame()`, `draw_board()`, `draw_cell()`, `draw_overlay()`, `draw_scoreboard()`: rendering helpers
+- `record_attempt()`: records current attempt result once
+- `draw_attempt_log()`: renders recent attempts below the board
 
 ### Runtime functions
 - `configure_screen(screen)`: configures `curses` modes and colors

@@ -60,6 +60,12 @@ On macOS, the game uses built-in system sounds via `afplay` when available.
 	- `## MID`
 	- `## HIGH`
 
+## Attempts Log
+- Below the game screen, the game shows recent attempts.
+- Each line shows both the attempt number and score (example: `#3  SCORE 42`).
+- The newest attempt is shown first.
+- Attempts are recorded when you lose, win, restart mid-game, or quit.
+
 ## Notes
 - The game is real-time with a fixed tick speed.
 - The selected difficulty changes the game tick speed.
