@@ -20,17 +20,24 @@ The game renders a fixed-size board in terminal text mode, updates on a timer, a
 - Lose condition: collision with wall or snake body
 - Start selected difficulty with `Enter`
 - Restart: `R`
-- Quit: `Q`
+- Quit/save flow: `Q` prompts for player name, saves score, then exits
+- Win/save flow: on win, prompts for player name, saves score, then exits
+- Right-side scoreboard displays only the chosen difficulty entries
 
 Difficulty requirements:
 - `ease`: 15% slower than base speed
 - `mid`: current/base speed
 - `high`: 20% faster than base speed
 
+Scoreboard requirements:
+- One file only: `SCORING_BOARD.md`
+- Separate tables per difficulty section: `## EASE`, `## MID`, `## HIGH`
+- Each table stores rank, score, player name, date
+
 ## Technical Requirements
 - Python 3 (tested with Python 3.13 in this workspace)
 - Terminal with `curses` support
-- Minimum terminal size: `46 x 26`
+- Minimum terminal size: `70 x 26`
 - No third-party Python packages required
 
 Optional runtime capability:
@@ -52,11 +59,18 @@ Key constants that define behavior:
 - `CELL_WIDTH = 2`
 - `TICK_MS = 140`
 - `WIN_SCORE = 100`
+- `BOARD_WIDTH = GRID_SIZE * CELL_WIDTH + 2`
+- `SCOREBOARD_LEFT = 2 + BOARD_WIDTH + 4`
+- `SCOREBOARD_WIDTH = 20`
 - `MIN_HEIGHT = GRID_SIZE + 6`
-- `MIN_WIDTH = GRID_SIZE * CELL_WIDTH + 6`
+- `MIN_WIDTH = SCOREBOARD_LEFT + SCOREBOARD_WIDTH + 2`
 
 Difficulty constants:
 - `DIFFICULTY_CHOICES = (("ease", 161), ("mid", 140), ("high", 112))`
+
+Scoreboard constants:
+- `SCORING_BOARD_MD = Path(__file__).parent / "SCORING_BOARD.md"`
+- `MAX_SCORES = 10`
 
 Audio constants:
 - `AFPLAY_PATH = shutil.which("afplay")`
@@ -68,6 +82,7 @@ Audio constants:
 Responsibilities:
 - Stores game state (`snake`, `direction`, `food`, `score`, `game_over`)
 - Stores selected difficulty name and tick speed
+- Stores scoreboard entries for selected difficulty
 - Handles reset and movement logic
 - Validates collisions
 - Draws the UI frame, board, entities, and overlays
@@ -75,10 +90,10 @@ Responsibilities:
 Core methods:
 - `reset()`: initializes a new game state
 - `spawn_food()`: picks random free cell not occupied by snake
-- `handle_key(key)`: processes controls and direction changes
+- `handle_key(key)`: processes controls, direction changes, and quit/save flow
 - `update()`: advances game by one tick and applies rules
 - `draw()`: full render cycle per frame
-- `draw_frame()`, `draw_board()`, `draw_cell()`, `draw_overlay()`: rendering helpers
+- `draw_frame()`, `draw_board()`, `draw_cell()`, `draw_overlay()`, `draw_scoreboard()`: rendering helpers
 
 ### Runtime functions
 - `configure_screen(screen)`: configures `curses` modes and colors
@@ -86,6 +101,12 @@ Core methods:
 - `choose_difficulty(screen)`: renders and handles the start menu
 - `play_sound(event)`: plays macOS sound via `afplay`, else falls back to beep/flash
 - `ensure_terminal_size(screen)`: enforces minimum terminal dimensions
+- `ensure_scoring_board()`: initializes `SCORING_BOARD.md` if missing
+- `load_all_scores()`: reads all difficulty tables from Markdown
+- `load_scores(difficulty)`: returns entries only for selected difficulty
+- `save_score(difficulty, score, name)`: appends score into selected table
+- `write_scoring_board_md(scoreboards)`: writes full single-file scoreboard with separate sections
+- `ask_player_name(screen, score, difficulty)`: in-terminal name input dialog
 - `run(screen)`: main loop (`draw -> input -> update`)
 - `main()`: entrypoint (`curses.wrapper(run)`)
 
@@ -112,11 +133,21 @@ Timing uses the selected difficulty timeout so the loop updates regularly even w
 - On pickup:
   - score increments
   - pickup sound is played
-  - if score >= win score, game ends with win message
+  - if score >= win score, game ends with win message and name prompt
   - otherwise spawn new food
 - On non-pickup movement:
   - tail segment is removed
   - movement sound is played
+
+## Scoreboard Data Model
+- Storage format is Markdown, not plain text/CSV.
+- File structure:
+  - `# Scoring Board`
+  - `## EASE` table
+  - `## MID` table
+  - `## HIGH` table
+- Each record contains: rank (derived), score, player name, date/time.
+- In-game panel shows only current difficulty table entries.
 
 ## Audio Behavior
 `play_sound(event)` checks:

@@ -15,12 +15,12 @@ python3 python-python/snake_game.py
 
 ## Controls
 - Start screen:
-	- `Up` / `Down`: select difficulty
-	- `Enter`: start game with selected difficulty
-	- `Q`: quit from the menu
+  - `Up` / `Down`: select difficulty
+  - `Enter`: start game with selected difficulty
+  - `Q`: quit from the menu
 - Arrow keys: move the snake (`Up`, `Down`, `Left`, `Right`)
 - `R`: restart the game after game over or win
-- `Q`: quit
+- `Q`: open name prompt, save score, quit
 
 ## Difficulty Levels
 - `ease`: 15% slower than the base speed (`161 ms` per tick)
@@ -35,6 +35,8 @@ When the game starts, a menu is shown before gameplay begins. The selected diffi
 - The score is shown in the upper-right as `PTS XX`.
 - Reach 100 points to win.
 
+On win, the game asks for player name, saves score, and updates the scoring board.
+
 ## Lose Conditions
 The game ends with game over if the snake:
 - Hits a wall
@@ -47,8 +49,16 @@ The game ends with game over if the snake:
 On macOS, the game uses built-in system sounds via `afplay` when available.
 
 ## Terminal Requirements
-- Use a terminal window with minimum size `46 x 26` (width x height).
+- Use a terminal window with minimum size `70 x 26` (width x height).
 - If your terminal is too small, the game exits and prints the minimum required size.
+
+## Scoreboard
+- The right-side panel shows scores for the currently selected difficulty only.
+- Scores are stored in one Markdown file: `SCORING_BOARD.md`.
+- `SCORING_BOARD.md` contains three separate tables:
+	- `## EASE`
+	- `## MID`
+	- `## HIGH`
 
 ## Notes
 - The game is real-time with a fixed tick speed.
