@@ -2,6 +2,7 @@ import curses
 import random
 import shutil
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 
@@ -9,8 +10,13 @@ GRID_SIZE = 20
 CELL_WIDTH = 2
 TICK_MS = 140
 WIN_SCORE = 100
+BOARD_WIDTH = GRID_SIZE * CELL_WIDTH + 2
+SCOREBOARD_LEFT = 2 + BOARD_WIDTH + 4
+SCOREBOARD_WIDTH = 20
 MIN_HEIGHT = GRID_SIZE + 6
-MIN_WIDTH = GRID_SIZE * CELL_WIDTH + 6
+MIN_WIDTH = SCOREBOARD_LEFT + SCOREBOARD_WIDTH + 2
+SCORING_BOARD_MD = Path(__file__).parent / "SCORING_BOARD.md"
+MAX_SCORES = 10
 DIFFICULTY_CHOICES = (
     ("ease", int(TICK_MS * 1.15)),
     ("mid", TICK_MS),
@@ -29,10 +35,11 @@ RIGHT = (1, 0)
 
 
 class SnakeGame:
-    def __init__(self, screen: curses.window, difficulty_name: str, tick_ms: int) -> None:
+    def __init__(self, screen: curses.window, difficulty_name: str, tick_ms: int, scores: list) -> None:
         self.screen = screen
         self.difficulty_name = difficulty_name
         self.tick_ms = tick_ms
+        self.scores = scores
         self.board_top = 2
         self.board_left = 2
         self.reset()
@@ -58,6 +65,10 @@ class SnakeGame:
 
     def handle_key(self, key: int) -> bool:
         if key in (ord("q"), ord("Q")):
+            name = ask_player_name(self.screen, self.score, self.difficulty_name)
+            save_score(self.difficulty_name, self.score, name)
+            self.scores = load_scores(self.difficulty_name)
+            write_scoring_board_md(load_all_scores())
             return False
 
         direction_map = {
@@ -105,6 +116,11 @@ class SnakeGame:
             if self.score >= WIN_SCORE:
                 self.game_over = True
                 self.message = "YOU WIN!"
+                self.draw()
+                name = ask_player_name(self.screen, self.score, self.difficulty_name)
+                save_score(self.difficulty_name, self.score, name)
+                self.scores = load_scores(self.difficulty_name)
+                write_scoring_board_md(load_all_scores())
                 return
             self.food = self.spawn_food()
         else:
@@ -122,6 +138,7 @@ class SnakeGame:
         self.screen.addstr(0, MIN_WIDTH - 8, f"PTS {self.score:02d}", curses.A_BOLD)
         self.draw_frame()
         self.draw_board()
+        self.draw_scoreboard()
 
         if self.game_over:
             self.draw_overlay(self.message, "R TO RESTART OR Q TO QUIT AS LOOSERS DO!!1")
@@ -167,6 +184,25 @@ class SnakeGame:
         self.screen.addstr(start_row + 1, start_col + (width - len(title)) // 2, title, curses.A_BOLD)
         self.screen.addstr(start_row + 2, start_col + (width - len(subtitle)) // 2, subtitle)
 
+    def draw_scoreboard(self) -> None:
+        col = SCOREBOARD_LEFT
+        top = self.board_top
+        inner = SCOREBOARD_WIDTH
+
+        self.screen.addstr(top, col, "+" + "-" * inner + "+", curses.A_BOLD)
+        title = f" {self.difficulty_name.upper()} SCORES "
+        self.screen.addstr(top + 1, col, "|" + title.center(inner) + "|", curses.A_BOLD)
+        self.screen.addstr(top + 2, col, "+" + "-" * inner + "+", curses.A_BOLD)
+
+        for rank, (score, name, date) in enumerate(self.scores[:MAX_SCORES], start=1):
+            line = f"{rank:>2}. {score:>4} {name[:11]}"
+            self.screen.addstr(top + 2 + rank, col, "|" + line.ljust(inner) + "|")
+
+        for blank in range(len(self.scores), MAX_SCORES):
+            self.screen.addstr(top + 3 + blank, col, "|" + " " * inner + "|")
+
+        self.screen.addstr(top + 3 + MAX_SCORES, col, "+" + "-" * inner + "+", curses.A_BOLD)
+
 
 def configure_screen(screen: curses.window) -> None:
     curses.curs_set(0)
@@ -209,6 +245,145 @@ def ensure_terminal_size(screen: curses.window) -> None:
         )
 
 
+def _empty_scoreboards() -> dict[str, list[tuple[int, str, str]]]:
+    return {difficulty_name: [] for difficulty_name, _ in DIFFICULTY_CHOICES}
+
+
+def _parse_difficulty_header(line: str, scoreboards: dict[str, list[tuple[int, str, str]]]) -> str | None:
+    if not line.startswith("## "):
+        return None
+    section_name = line[3:].strip().lower()
+    return section_name if section_name in scoreboards else None
+
+
+def _parse_score_line(line: str) -> tuple[int, str, str] | None:
+    if not line.startswith("|"):
+        return None
+    if "Rank" in line or "------" in line or "No scores recorded yet" in line:
+        return None
+
+    parts = [p.strip() for p in line.strip("|").split("|")]
+    if len(parts) != 4:
+        return None
+
+    _, score_text, name, date = parts
+    if score_text == "-":
+        return None
+
+    try:
+        score = int(score_text)
+    except ValueError:
+        return None
+
+    return score, (name or "ANON"), date
+
+
+def load_all_scores() -> dict[str, list[tuple[int, str, str]]]:
+    scoreboards = _empty_scoreboards()
+    if not SCORING_BOARD_MD.exists():
+        write_scoring_board_md(scoreboards)
+        return scoreboards
+
+    current_difficulty = None
+    for raw_line in SCORING_BOARD_MD.read_text().splitlines():
+        line = raw_line.strip()
+        parsed_difficulty = _parse_difficulty_header(line, scoreboards)
+        if parsed_difficulty is not None:
+            current_difficulty = parsed_difficulty
+            continue
+
+        if current_difficulty is None:
+            continue
+
+        parsed_score = _parse_score_line(line)
+        if parsed_score is None:
+            continue
+
+        scoreboards[current_difficulty].append(parsed_score)
+
+    for difficulty_name in scoreboards:
+        scoreboards[difficulty_name].sort(key=lambda e: e[0], reverse=True)
+
+    return scoreboards
+
+
+def load_scores(difficulty: str) -> list:
+    return load_all_scores().get(difficulty, [])
+
+
+def save_score(difficulty: str, score: int, name: str) -> None:
+    scoreboards = load_all_scores()
+    date = datetime.now().strftime("%Y-%m-%d %H:%M")
+    scoreboards[difficulty].append((score, name, date))
+    scoreboards[difficulty].sort(key=lambda e: e[0], reverse=True)
+    write_scoring_board_md(scoreboards)
+
+
+def write_scoring_board_md(scoreboards: dict[str, list[tuple[int, str, str]]]) -> None:
+    lines = [
+        "# Scoring Board",
+        "",
+    ]
+
+    for difficulty_name, _ in DIFFICULTY_CHOICES:
+        scores = scoreboards.get(difficulty_name, [])
+        lines.extend(
+            [
+                f"## {difficulty_name.upper()}",
+                "",
+                "| Rank | Score | Name | Date |",
+                "|------|-------|------|------|",
+            ]
+        )
+
+        for rank, (score, name, date) in enumerate(scores[:MAX_SCORES], start=1):
+            lines.append(f"| {rank} | {score} | {name} | {date} |")
+
+        if not scores:
+            lines.append("| - | - | - | No scores recorded yet |")
+
+        lines.append("")
+
+    SCORING_BOARD_MD.write_text("\n".join(lines))
+
+
+def ensure_scoring_board() -> None:
+    if not SCORING_BOARD_MD.exists():
+        write_scoring_board_md(_empty_scoreboards())
+
+
+def ask_player_name(screen: curses.window, score: int, difficulty: str) -> str:
+    curses.curs_set(1)
+    screen.nodelay(False)
+    name = ""
+    max_len = 12
+    width = 28
+    row = 8
+    col = (GRID_SIZE * CELL_WIDTH + 4 - width) // 2
+
+    while True:
+        screen.addstr(row,     col, "+" + "-" * (width - 2) + "+", curses.A_BOLD)
+        screen.addstr(row + 1, col, "|" + " ENTER YOUR NAME ".center(width - 2) + "|", curses.A_BOLD)
+        screen.addstr(row + 2, col, "|" + f" Score: {score}  {difficulty.upper()} ".ljust(width - 2) + "|", curses.A_BOLD)
+        screen.addstr(row + 3, col, "|" + " " * (width - 2) + "|")
+        screen.addstr(row + 3, col + 2, (name + "_")[: width - 4])
+        screen.addstr(row + 4, col, "|" + " ENTER to confirm ".center(width - 2) + "|")
+        screen.addstr(row + 5, col, "+" + "-" * (width - 2) + "+", curses.A_BOLD)
+        screen.refresh()
+
+        key = screen.getch()
+        if key in (10, 13, curses.KEY_ENTER):
+            break
+        elif key in (curses.KEY_BACKSPACE, 127, 8):
+            name = name[:-1]
+        elif 32 <= key <= 126 and len(name) < max_len:
+            name += chr(key)
+
+    curses.curs_set(0)
+    screen.nodelay(True)
+    return name.strip() or "ANON"
+
+
 def choose_difficulty(screen: curses.window) -> tuple[str, int] | None:
     selected = 1
 
@@ -239,6 +414,7 @@ def choose_difficulty(screen: curses.window) -> tuple[str, int] | None:
 
 
 def run(screen: curses.window) -> None:
+    ensure_scoring_board()
     configure_screen(screen)
     ensure_terminal_size(screen)
     difficulty = choose_difficulty(screen)
@@ -247,7 +423,8 @@ def run(screen: curses.window) -> None:
 
     difficulty_name, tick_ms = difficulty
     set_tick_speed(screen, tick_ms)
-    game = SnakeGame(screen, difficulty_name, tick_ms)
+    scores = load_scores(difficulty_name)
+    game = SnakeGame(screen, difficulty_name, tick_ms, scores)
 
     running = True
     while running:
