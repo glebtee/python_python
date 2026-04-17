@@ -17,6 +17,7 @@ BASE_MIN_HEIGHT = GRID_SIZE + 6
 ATTEMPT_LOG_LINES = 5
 MIN_HEIGHT = BASE_MIN_HEIGHT + ATTEMPT_LOG_LINES + 1
 MIN_WIDTH = SCOREBOARD_LEFT + SCOREBOARD_WIDTH + 2
+SCORES_FILE = Path(__file__).parent / "scores.txt"
 SCORING_BOARD_MD = Path(__file__).parent / "SCORING_BOARD.md"
 MAX_SCORES = 10
 DIFFICULTY_CHOICES = (
@@ -76,7 +77,7 @@ class SnakeGame:
     def handle_key(self, key: int) -> bool:
         if key in (ord("q"), ord("Q")):
             self.record_attempt()
-            best_score = self.best_attempt_score()
+            _, best_score = self.best_attempt()
             name = ask_player_name(self.screen, best_score, self.difficulty_name)
             save_score(self.difficulty_name, best_score, name)
             self.scores = load_scores(self.difficulty_name)
@@ -148,9 +149,12 @@ class SnakeGame:
         self.attempt_history.append((self.current_attempt, self.score))
 
     def best_attempt_score(self) -> int:
+        return self.best_attempt()[1]
+
+    def best_attempt(self) -> tuple[int, int]:
         if not self.attempt_history:
-            return self.score
-        return max(score for _, score in self.attempt_history)
+            return self.current_attempt, self.score
+        return max(self.attempt_history, key=lambda attempt: attempt[1])
 
     def hit_wall(self, position: tuple[int, int]) -> bool:
         x, y = position
@@ -291,57 +295,40 @@ def _empty_scoreboards() -> dict[str, list[tuple[int, str, str]]]:
     return {difficulty_name: [] for difficulty_name, _ in DIFFICULTY_CHOICES}
 
 
-def _parse_difficulty_header(line: str, scoreboards: dict[str, list[tuple[int, str, str]]]) -> str | None:
-    if not line.startswith("## "):
-        return None
-    section_name = line[3:].strip().lower()
-    return section_name if section_name in scoreboards else None
-
-
-def _parse_score_line(line: str) -> tuple[int, str, str] | None:
-    if not line.startswith("|"):
-        return None
-    if "Rank" in line or "------" in line or "No scores recorded yet" in line:
-        return None
-
-    parts = [p.strip() for p in line.strip("|").split("|")]
-    if len(parts) != 4:
-        return None
-
-    _, score_text, name, date = parts
-    if score_text == "-":
-        return None
-
-    try:
-        score = int(score_text)
-    except ValueError:
-        return None
-
-    return score, (name or "ANON"), date
-
-
 def load_all_scores() -> dict[str, list[tuple[int, str, str]]]:
     scoreboards = _empty_scoreboards()
-    if not SCORING_BOARD_MD.exists():
-        write_scoring_board_md(scoreboards)
+    if not SCORES_FILE.exists():
+        SCORES_FILE.touch()
         return scoreboards
 
-    current_difficulty = None
-    for raw_line in SCORING_BOARD_MD.read_text().splitlines():
+    for raw_line in SCORES_FILE.read_text().splitlines():
         line = raw_line.strip()
-        parsed_difficulty = _parse_difficulty_header(line, scoreboards)
-        if parsed_difficulty is not None:
-            current_difficulty = parsed_difficulty
+        if not line:
             continue
 
-        if current_difficulty is None:
+        parts = [part.strip() for part in line.split(",")]
+        if len(parts) < 3:
             continue
 
-        parsed_score = _parse_score_line(line)
-        if parsed_score is None:
+        score_text = parts[0]
+        difficulty = parts[1].lower()
+
+        if difficulty not in scoreboards:
             continue
 
-        scoreboards[current_difficulty].append(parsed_score)
+        if len(parts) >= 4:
+            name = parts[2] or "ANON"
+            date = ",".join(parts[3:]).strip()
+        else:
+            name = "ANON"
+            date = parts[2]
+
+        try:
+            score = int(score_text)
+        except ValueError:
+            continue
+
+        scoreboards[difficulty].append((score, name, date))
 
     for difficulty_name in scoreboards:
         scoreboards[difficulty_name].sort(key=lambda e: e[0], reverse=True)
@@ -354,11 +341,10 @@ def load_scores(difficulty: str) -> list:
 
 
 def save_score(difficulty: str, score: int, name: str) -> None:
-    scoreboards = load_all_scores()
     date = datetime.now().strftime("%Y-%m-%d %H:%M")
-    scoreboards[difficulty].append((score, name, date))
-    scoreboards[difficulty].sort(key=lambda e: e[0], reverse=True)
-    write_scoring_board_md(scoreboards)
+    with SCORES_FILE.open("a") as fh:
+        fh.write(f"{score},{difficulty},{name},{date}\n")
+    write_scoring_board_md(load_all_scores())
 
 
 def write_scoring_board_md(scoreboards: dict[str, list[tuple[int, str, str]]]) -> None:
@@ -390,8 +376,9 @@ def write_scoring_board_md(scoreboards: dict[str, list[tuple[int, str, str]]]) -
 
 
 def ensure_scoring_board() -> None:
-    if not SCORING_BOARD_MD.exists():
-        write_scoring_board_md(_empty_scoreboards())
+    if not SCORES_FILE.exists():
+        SCORES_FILE.touch()
+    write_scoring_board_md(load_all_scores())
 
 
 def ask_player_name(screen: curses.window, score: int, difficulty: str) -> str:
