@@ -20,8 +20,8 @@ The game renders a fixed-size board in terminal text mode, updates on a timer, a
 - Lose condition: collision with wall or snake body
 - Start selected difficulty with `Enter`
 - Restart: `R`
-- Quit/save flow: `Q` prompts for player name, saves score, then exits
-- Win/save flow: on win, prompts for player name, saves score, then exits
+- Quit/save flow: `Q` prompts for player name, saves the best attempt score for the current run and selected difficulty, then exits
+- Win/save flow: on win, prompts for player name and saves score; game then remains on end screen and can be restarted with `R` or exited with `Q`
 - Right-side scoreboard displays only the chosen difficulty entries
 - Attempts log shown below the game area with attempt number and score
 
@@ -31,7 +31,8 @@ Difficulty requirements:
 - `high`: 20% faster than base speed
 
 Scoreboard requirements:
-- One file only: `SCORING_BOARD.md`
+- Persisted scores file: `scores.txt`
+- Generated scoreboard file: `SCORING_BOARD.md`
 - Separate tables per difficulty section: `## EASE`, `## MID`, `## HIGH`
 - Each table stores rank, score, player name, date
 
@@ -50,6 +51,7 @@ Standard-library imports used:
 - `random`
 - `shutil`
 - `subprocess`
+- `datetime`
 - `pathlib.Path`
 
 No external dependencies are installed.
@@ -73,6 +75,7 @@ Difficulty constants:
 
 Scoreboard constants:
 - `SCORING_BOARD_MD = Path(__file__).parent / "SCORING_BOARD.md"`
+- `SCORES_FILE = Path(__file__).parent / "scores.txt"`
 - `MAX_SCORES = 10`
 
 Audio constants:
@@ -107,11 +110,11 @@ Core methods:
 - `choose_difficulty(screen)`: renders and handles the start menu
 - `play_sound(event)`: plays macOS sound via `afplay`, else falls back to beep/flash
 - `ensure_terminal_size(screen)`: enforces minimum terminal dimensions
-- `ensure_scoring_board()`: initializes `SCORING_BOARD.md` if missing
-- `load_all_scores()`: reads all difficulty tables from Markdown
+- `ensure_scoring_board()`: initializes `scores.txt` if missing and regenerates `SCORING_BOARD.md`
+- `load_all_scores()`: reads all persisted entries from `scores.txt` and sorts them by score
 - `load_scores(difficulty)`: returns entries only for selected difficulty
 - `save_score(difficulty, score, name)`: appends score into selected table
-- `write_scoring_board_md(scoreboards)`: writes full single-file scoreboard with separate sections
+- `write_scoring_board_md(scoreboards)`: writes full single-file Markdown scoreboard with separate sections
 - `ask_player_name(screen, score, difficulty)`: in-terminal name input dialog
 - `run(screen)`: main loop (`draw -> input -> update`)
 - `main()`: entrypoint (`curses.wrapper(run)`)
@@ -146,7 +149,8 @@ Timing uses the selected difficulty timeout so the loop updates regularly even w
   - movement sound is played
 
 ## Scoreboard Data Model
-- Storage format is Markdown, not plain text/CSV.
+- Raw persistence format is plain text (`scores.txt`) with comma-separated values: score, difficulty, name, date.
+- Display/export format is Markdown (`SCORING_BOARD.md`) generated from persisted scores.
 - File structure:
   - `# Scoring Board`
   - `## EASE` table
@@ -168,14 +172,20 @@ If no, falls back to `curses.beep()` and then `curses.flash()` on error.
 - Sound fallback ensures game continues even when sound playback is unavailable.
 
 ## Running
-From workspace root:
+From the project folder:
 
 ```bash
-/opt/homebrew/bin/python3 python-python/snake_game.py
+python3 snake_game.py
+```
+
+From the parent folder:
+
+```bash
+/opt/homebrew/bin/python3 python_python/snake_game.py
 ```
 
 or
 
 ```bash
-python3 python-python/snake_game.py
+python3 python_python/snake_game.py
 ```

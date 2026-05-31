@@ -1,16 +1,22 @@
 # HOWTO: Play Snake
 
 ## Start The Game
-Run from the workspace root:
+Run from the project folder:
 
 ```bash
-/opt/homebrew/bin/python3 python-python/snake_game.py
+python3 snake_game.py
+```
+
+Or run from the parent folder:
+
+```bash
+/opt/homebrew/bin/python3 python_python/snake_game.py
 ```
 
 Or if `python3` is on your PATH:
 
 ```bash
-python3 python-python/snake_game.py
+python3 python_python/snake_game.py
 ```
 
 ## Controls
@@ -20,7 +26,7 @@ python3 python-python/snake_game.py
   - `Q`: quit from the menu
 - Arrow keys: move the snake (`Up`, `Down`, `Left`, `Right`)
 - `R`: restart the game after game over or win
-- `Q`: open name prompt, save score, quit
+- `Q`: open name prompt, save the best attempt score from this run, quit
 
 ## Difficulty Levels
 - `ease`: 15% slower than the base speed (`161 ms` per tick)
@@ -36,6 +42,7 @@ When the game starts, a menu is shown before gameplay begins. The selected diffi
 - Reach 100 points to win.
 
 On win, the game asks for player name, saves score, and updates the scoring board.
+After saving, the game stays on the end screen, where you can restart with `R` or quit with `Q`.
 
 ## Lose Conditions
 The game ends with game over if the snake:
@@ -54,7 +61,7 @@ On macOS, the game uses built-in system sounds via `afplay` when available.
 
 ## Scoreboard
 - The right-side panel shows scores for the currently selected difficulty only.
-- Scores are stored in one Markdown file: `SCORING_BOARD.md`.
+- Scores are persisted in `scores.txt` and mirrored into `SCORING_BOARD.md`.
 - `SCORING_BOARD.md` contains three separate tables:
 	- `## EASE`
 	- `## MID`
